@@ -29,10 +29,14 @@ def _node(name: str) -> GraphNode:
     )
 
 
-def _edge(source: GraphNode, target: GraphNode) -> GraphEdge:
+def _edge(
+    source: GraphNode,
+    target: GraphNode,
+    kind: str = "CALLS",
+) -> GraphEdge:
     return GraphEdge(
         id=hash((source.qualified_name, target.qualified_name)),
-        kind="CALLS",
+        kind=kind,
         source_qualified=source.qualified_name,
         target_qualified=target.qualified_name,
         file_path="app.py",
@@ -77,6 +81,27 @@ def test_cluster_connected_nodes_handles_empty_input() -> None:
         _Store([]),
         [],
     ) == []
+
+
+def test_cluster_connected_nodes_ignores_contains_edges() -> None:
+    container = _node("container")
+    first = _node("first")
+    second = _node("second")
+    store = _Store([
+        _edge(container, first, "CONTAINS"),
+        _edge(container, second, "CONTAINS"),
+    ])
+
+    clusters = cluster_connected_nodes(  # type: ignore[arg-type]
+        store,
+        [container, first, second],
+    )
+
+    assert [set(node.name for node in cluster) for cluster in clusters] == [
+        {"container"},
+        {"first"},
+        {"second"},
+    ]
 
 
 def test_split_diff_by_file_preserves_complete_sections() -> None:

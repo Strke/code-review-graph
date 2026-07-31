@@ -59,13 +59,16 @@ def cluster_connected_nodes(
 ) -> list[list[GraphNode]]:
     """Partition changed nodes into weakly connected components.
 
-    Only edges whose endpoints are both changed nodes are considered. Edge
-    direction is ignored, and an isolated node forms a cluster by itself.
+    Only non-containment edges whose endpoints are both changed nodes are
+    considered. Edge direction is ignored, and an isolated node forms a
+    cluster by itself.
     """
     nodes_by_name = {node.qualified_name: node for node in changed_nodes}
     adjacency = {name: set() for name in nodes_by_name}
 
     for edge in store.get_edges_among(set(nodes_by_name)):
+        if edge.kind == "CONTAINS":
+            continue
         adjacency[edge.source_qualified].add(edge.target_qualified)
         adjacency[edge.target_qualified].add(edge.source_qualified)
 
