@@ -83,6 +83,21 @@ def test_cluster_connected_nodes_handles_empty_input() -> None:
     ) == []
 
 
+def test_cluster_connected_nodes_excludes_file_nodes() -> None:
+    file_node = _node("app.py")
+    file_node.kind = "File"
+    function = _node("function")
+
+    clusters = cluster_connected_nodes(  # type: ignore[arg-type]
+        _Store([_edge(file_node, function, "CONTAINS")]),
+        [file_node, function],
+    )
+
+    assert [[node.name for node in cluster] for cluster in clusters] == [
+        ["function"],
+    ]
+
+
 def test_cluster_connected_nodes_ignores_contains_edges() -> None:
     container = _node("container")
     first = _node("first")
@@ -149,3 +164,39 @@ def test_save_diff_clusters_deduplicates_files_and_stacks_diff(tmp_path) -> None
     payload = json.loads(paths[0].read_text(encoding="utf-8"))
     assert payload["changed_files"] == ["src/a.py", "src/b.py"]
     assert payload["diff"].count("diff --git") == 2
+
+
+def test_save_diff_clusters_selects_hunks_by_node_range(tmp_path) -> None:
+    repo_root = tmp_path / "repo"
+    output_dir = tmp_path / "diff-clusters"
+    first = _node("first")
+    first.file_path = str(repo_root / "src/app.py")
+    first.line_start = 10
+    first.line_end = 20
+    second = _node("second")
+    second.file_path = str(repo_root / "src/app.py")
+    second.line_start = 40
+    second.line_end = 50
+    diff = (
+        "diff --git a/src/app.py b/src/app.py\n"
+        "--- a/src/app.py\n"
+        "+++ b/src/app.py\n"
+        "@@ -11 +11 @@\n-old first\n+new first\n"
+        "@@ -41 +41 @@\n-old second\n+new second\n"
+    )
+
+    paths = save_diff_clusters(
+        [[first], [second]],
+        diff,
+        output_dir,
+        repo_root,
+    )
+
+    first_payload = json.loads(paths[0].read_text(encoding="utf-8"))
+    second_payload = json.loads(paths[1].read_text(encoding="utf-8"))
+    assert "new first" in first_payload["diff"]
+    assert "new second" not in first_payload["diff"]
+    assert "new second" in second_payload["diff"]
+    assert "new first" not in second_payload["diff"]
+    assert first_payload["diff"].startswith("diff --git a/src/app.py")
+    assert second_payload["diff"].startswith("diff --git a/src/app.py")

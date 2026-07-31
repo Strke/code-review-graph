@@ -63,6 +63,7 @@ def cluster_connected_nodes(
     considered. Edge direction is ignored, and an isolated node forms a
     cluster by itself.
     """
+    changed_nodes = [node for node in changed_nodes if node.kind != "File"]
     nodes_by_name = {node.qualified_name: node for node in changed_nodes}
     adjacency = {name: set() for name in nodes_by_name}
 
@@ -109,6 +110,39 @@ def split_diff_by_file(diff: str) -> dict[str, str]:
     return file_diffs
 
 
+def _select_diff_hunks(
+    file_diff: str,
+    node_ranges: list[tuple[int, int]],
+) -> str:
+    """Return the file header and hunks overlapping the given node ranges."""
+    first_hunk = re.search(r"^@@ ", file_diff, re.MULTILINE)
+    if first_hunk is None:
+        return ""
+
+    header = file_diff[:first_hunk.start()]
+    hunks = re.split(
+        r"(?=^@@ )",
+        file_diff[first_hunk.start():],
+        flags=re.MULTILINE,
+    )
+    selected: list[str] = []
+    hunk_pattern = re.compile(
+        r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@"
+    )
+    for hunk in hunks:
+        match = hunk_pattern.match(hunk)
+        if match is None:
+            continue
+        start = int(match.group(1))
+        count = int(match.group(2)) if match.group(2) is not None else 1
+        end = start if count == 0 else start + count - 1
+        if any(node_start <= end and node_end >= start
+               for node_start, node_end in node_ranges):
+            selected.append(hunk)
+
+    return header + "".join(selected) if selected else ""
+
+
 def save_diff_clusters(
     clusters: list[list[GraphNode]],
     diff: str,
@@ -125,6 +159,7 @@ def save_diff_clusters(
     for index, cluster in enumerate(clusters, start=1):
         cluster_files: list[str] = []
         seen_files: set[str] = set()
+        node_ranges_by_file: dict[str, list[tuple[int, int]]] = {}
         for node in cluster:
             node_path = Path(node.file_path)
             try:
@@ -134,9 +169,15 @@ def save_diff_clusters(
             if file_path not in seen_files:
                 seen_files.add(file_path)
                 cluster_files.append(file_path)
+            node_ranges_by_file.setdefault(file_path, []).append(
+                (node.line_start, node.line_end)
+            )
 
         cluster_diff = "".join(
-            file_diffs[file_path]
+            _select_diff_hunks(
+                file_diffs[file_path],
+                node_ranges_by_file[file_path],
+            )
             for file_path in cluster_files
             if file_path in file_diffs
         )
