@@ -199,6 +199,15 @@ def save_diff_clusters(
     return output_paths
 
 
+def _relativize_node_file(node: GraphNode, root: Path) -> str:
+    """Return the node's file path relative to *root* as a posix string."""
+    p = Path(node.file_path)
+    try:
+        return p.relative_to(root).as_posix()
+    except ValueError:
+        return p.as_posix()
+
+
 def get_diff_cluster(
     json_path: str,
     repo_root: str | None = None,
@@ -220,7 +229,48 @@ def get_diff_cluster(
     output_dir = Path(json_path).expanduser().parent / "diff-clusters"
     cluster_paths = save_diff_clusters(clusters, diff, output_dir, root)
 
-    return {
+    file_diffs = split_diff_by_file(diff)
+    node_file_set = {_relativize_node_file(n, root) for n in changed_nodes}
+
+    unmatched_files: dict[str, str] = {}
+    for fp in file_diffs:
+        if fp not in diff_ranges:
+            unmatched_files[fp] = (
+                "Could not parse hunk headers — "
+                "the diff may contain syntax errors."
+            )
+        else:
+            has_node = any(
+                fp == nf or nf.endswith("/" + fp) for nf in node_file_set
+            )
+            if not has_node:
+                unmatched_files[fp] = (
+                    "No matching nodes found in the knowledge graph "
+                    "(file may not be tracked or changed lines do not "
+                    "overlap with any function/class)."
+                )
+
+    unmatched_path = None
+    if unmatched_files:
+        unmatched_diff = "".join(
+            file_diffs[fp] for fp in unmatched_files if fp in file_diffs
+        )
+        unmatched_path = output_dir / "cluster-unmatched.json"
+        unmatched_path.write_text(
+            json.dumps(
+                {
+                    "changed_files": list(unmatched_files.keys()),
+                    "diff": unmatched_diff,
+                    "unmatched_reasons": unmatched_files,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    result: dict[str, Any] = {
         "status": "ok",
         "summary": f"Saved {len(cluster_paths)} diff cluster(s) to {output_dir}",
         "changed_files": changed_files,
@@ -228,3 +278,8 @@ def get_diff_cluster(
         "diff_ranges": diff_ranges,
         "cluster_files": [str(path) for path in cluster_paths],
     }
+    if unmatched_path is not None:
+        result["unmatched_cluster"] = str(unmatched_path)
+        result["unmatched_count"] = len(unmatched_files)
+
+    return result
