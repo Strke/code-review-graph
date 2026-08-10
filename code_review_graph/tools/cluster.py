@@ -156,6 +156,7 @@ def save_diff_clusters(
         stale_path.unlink()
 
     output_paths: list[Path] = []
+    resolved_root = repo_root.resolve()
     for index, cluster in enumerate(clusters, start=1):
         cluster_files: list[str] = []
         seen_files: set[str] = set()
@@ -163,7 +164,7 @@ def save_diff_clusters(
         for node in cluster:
             node_path = Path(node.file_path)
             try:
-                file_path = node_path.relative_to(repo_root).as_posix()
+                file_path = node_path.resolve().relative_to(resolved_root).as_posix()
             except ValueError:
                 file_path = node_path.as_posix()
             if file_path not in seen_files:
@@ -203,7 +204,7 @@ def _relativize_node_file(node: GraphNode, root: Path) -> str:
     """Return the node's file path relative to *root* as a posix string."""
     p = Path(node.file_path)
     try:
-        return p.relative_to(root).as_posix()
+        return p.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
         return p.as_posix()
 
