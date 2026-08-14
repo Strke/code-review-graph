@@ -64,6 +64,9 @@ from .analysis_tools import (
 # -- build ------------------------------------------------------------------
 from .build import build_or_update_graph, run_postprocess
 
+# -- cluster ----------------------------------------------------------------
+from .cluster import get_diff_cluster
+
 # -- community_tools --------------------------------------------------------
 from .community_tools import (
     get_architecture_overview_func,
@@ -112,6 +115,8 @@ __all__ = [
     # build
     "build_or_update_graph",
     "run_postprocess",
+    # cluster
+    "get_diff_cluster",
     # context
     "get_minimal_context",
     # community_tools

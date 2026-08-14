@@ -10,6 +10,8 @@ import pytest
 
 import code_review_graph.tools  # noqa: F401 - exposes lazy patch targets
 from code_review_graph import cli
+from code_review_graph.graph import GraphStore
+from code_review_graph.parser import EdgeInfo, NodeInfo
 
 
 @pytest.mark.parametrize(
@@ -144,3 +146,73 @@ def test_tool_command_missing_graph_exits_nonzero(tmp_path, monkeypatch, capsys)
 
     assert exc_info.value.code == 1
     assert "No graph found" in capsys.readouterr().err
+
+
+def test_diff_cluster_command_writes_connected_components(
+    tmp_path, capsys,
+):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    input_path = tmp_path / "changes.json"
+    diff = "".join(
+        f"diff --git a/{name}.py b/{name}.py\n"
+        f"--- a/{name}.py\n"
+        f"+++ b/{name}.py\n"
+        "@@ -1 +1 @@\n"
+        "-old\n"
+        "+new\n"
+        for name in ("a", "b", "c")
+    )
+    input_path.write_text(
+        json.dumps({
+            "changed_files": ["a.py", "b.py", "c.py"],
+            "diff": diff,
+        }),
+        encoding="utf-8",
+    )
+
+    with GraphStore(repo / ".code-review-graph" / "graph.db") as store:
+        for name in ("a", "b", "c"):
+            store.upsert_node(NodeInfo(
+                kind="Function",
+                name=name,
+                file_path=str(repo / f"{name}.py"),
+                line_start=1,
+                line_end=1,
+                language="python",
+            ))
+        store.upsert_edge(EdgeInfo(
+            kind="CALLS",
+            source=f"{repo / 'a.py'}::a",
+            target=f"{repo / 'b.py'}::b",
+            file_path=str(repo / "a.py"),
+            line=1,
+        ))
+        store.commit()
+
+    with patch.object(
+        sys,
+        "argv",
+        [
+            "code-review-graph",
+            "diff-cluster",
+            str(input_path),
+            "--repo",
+            str(repo),
+        ],
+    ):
+        cli.main()
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "ok"
+    assert len(result["cluster_files"]) == 2
+
+    payloads = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted((tmp_path / "diff-clusters").glob("cluster-*.json"))
+    ]
+    assert payloads[0]["changed_files"] == ["a.py", "b.py"]
+    assert payloads[0]["diff"].count("diff --git") == 2
+    assert payloads[1]["changed_files"] == ["c.py"]
+    assert payloads[1]["diff"].count("diff --git") == 1

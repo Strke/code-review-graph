@@ -494,6 +494,7 @@ _GRAPH_TOOL_COMMANDS = {
     "community",
     "architecture",
     "large-functions",
+    "diff-cluster",
     "refactor",
 }
 
@@ -586,6 +587,11 @@ def _run_graph_tool_command(args, repo_root: Path) -> None:
             kind=args.kind,
             file_path_pattern=args.path,
             limit=args.limit,
+            repo_root=root,
+        )
+    elif args.command == "diff-cluster":
+        result = tools.get_diff_cluster(
+            json_path=args.json_path,
             repo_root=root,
         )
     else:
@@ -1138,6 +1144,20 @@ def main() -> None:
     large_cmd.add_argument("--path", default=None, help="File-path substring filter")
     large_cmd.add_argument("--limit", type=_positive_int, default=50)
     large_cmd.add_argument("--repo", default=None, help="Repository root (auto-detected)")
+
+    diff_cluster_cmd = sub.add_parser(
+        "diff-cluster",
+        help="Group changes described by a JSON file",
+    )
+    diff_cluster_cmd.add_argument(
+        "json_path",
+        help="JSON file containing changed_files and diff",
+    )
+    diff_cluster_cmd.add_argument(
+        "--repo",
+        default=None,
+        help="Repository root (auto-detected)",
+    )
 
     refactor_cmd = sub.add_parser("refactor", help="Preview graph-backed refactors")
     refactor_cmd.add_argument("mode", choices=["rename", "dead_code", "suggest"])
