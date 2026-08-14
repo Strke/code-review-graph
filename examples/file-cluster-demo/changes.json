@@ -1,0 +1,9 @@
+{
+  "changed_files": [
+    "a.py",
+    "b.py",
+    "c.py",
+    "d.py"
+  ],
+  "diff": "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -5 +5 @@ def changed_a() -> int:\n-    return changed_b()\n+    return changed_b() + 1\ndiff --git a/b.py b/b.py\n--- a/b.py\n+++ b/b.py\n@@ -2 +2 @@ def changed_b() -> int:\n-    return 1\n+    return 2\ndiff --git a/c.py b/c.py\n--- a/c.py\n+++ b/c.py\n@@ -2 +2 @@ def changed_c() -> int:\n-    return 1\n+    return 3\ndiff --git a/d.py b/d.py\n--- a/d.py\n+++ b/d.py\n@@ -2 +2 @@ def changed_d() -> int:\n-    return 1\n+    return 4\n"
+}

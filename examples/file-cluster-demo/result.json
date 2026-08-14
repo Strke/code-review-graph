@@ -1,0 +1,22 @@
+{
+  "status": "ok",
+  "summary": "Grouped 4 changed file(s) into 3 cluster(s)",
+  "changed_files": [
+    "a.py",
+    "b.py",
+    "c.py",
+    "d.py"
+  ],
+  "clusters": [
+    [
+      "a.py",
+      "b.py"
+    ],
+    [
+      "c.py"
+    ],
+    [
+      "d.py"
+    ]
+  ]
+}
