@@ -339,8 +339,18 @@ def get_diff_cluster(
 def get_file_cluster(
     json_path: str,
     repo_root: str | None = None,
+    output: str | None = None,
 ) -> dict[str, Any]:
-    """Load diff-style JSON input and group its changed files by connectivity."""
+    """Load diff-style JSON input and group its changed files by connectivity.
+
+    Args:
+        json_path: Path to a JSON file containing ``changed_files`` and ``diff``.
+        repo_root: Repository root (auto-detected when omitted).
+        output: Optional path to write the result JSON to. When it points to an
+            existing directory (or ends with a path separator), a ``result.json``
+            file is created inside it. Otherwise the result is written to the
+            given file path.
+    """
     try:
         changed_files, diff = load_diff_input(json_path)
     except ValueError as exc:
@@ -354,9 +364,26 @@ def get_file_cluster(
     finally:
         store.close()
 
-    return {
+    result: dict[str, Any] = {
         "status": "ok",
         "summary": f"Grouped {len(changed_files)} changed file(s) into {len(clusters)} cluster(s)",
         "changed_files": changed_files,
         "clusters": clusters,
     }
+
+    if output is not None:
+        _write_cluster_result(result, output)
+
+    return result
+
+
+def _write_cluster_result(result: dict[str, Any], output: str) -> None:
+    """Write a cluster result to a file, creating ``result.json`` in a directory."""
+    target = Path(output).expanduser()
+    if target.is_dir() or output.endswith(("/", "\\")):
+        target = target / "result.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        json.dumps(result, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )

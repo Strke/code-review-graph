@@ -304,3 +304,86 @@ def test_file_cluster_command_empty_diff_keeps_files_separate(tmp_path, capsys) 
 
     result = json.loads(capsys.readouterr().out)
     assert result["clusters"] == [["a.py"], ["b.py"]]
+
+
+def test_file_cluster_command_writes_output_file(tmp_path, capsys) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    input_path = tmp_path / "changes.json"
+    input_path.write_text(
+        json.dumps({"changed_files": ["a.py"], "diff": ""}),
+        encoding="utf-8",
+    )
+
+    with GraphStore(repo / ".code-review-graph" / "graph.db") as store:
+        store.upsert_node(NodeInfo(
+            kind="Function",
+            name="a",
+            file_path=str(repo / "a.py"),
+            line_start=1,
+            line_end=1,
+            language="python",
+        ))
+        store.commit()
+
+    output_file = tmp_path / "result.json"
+    with patch.object(
+        sys,
+        "argv",
+        [
+            "code-review-graph",
+            "file-cluster",
+            str(input_path),
+            "--repo",
+            str(repo),
+            "--output",
+            str(output_file),
+        ],
+    ):
+        cli.main()
+
+    payload = json.loads(output_file.read_text(encoding="utf-8"))
+    assert payload["clusters"] == [["a.py"]]
+
+
+def test_file_cluster_command_writes_output_to_directory(tmp_path, capsys) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    input_path = tmp_path / "changes.json"
+    input_path.write_text(
+        json.dumps({"changed_files": ["a.py"], "diff": ""}),
+        encoding="utf-8",
+    )
+
+    with GraphStore(repo / ".code-review-graph" / "graph.db") as store:
+        store.upsert_node(NodeInfo(
+            kind="Function",
+            name="a",
+            file_path=str(repo / "a.py"),
+            line_start=1,
+            line_end=1,
+            language="python",
+        ))
+        store.commit()
+
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    with patch.object(
+        sys,
+        "argv",
+        [
+            "code-review-graph",
+            "file-cluster",
+            str(input_path),
+            "--repo",
+            str(repo),
+            "--output",
+            str(output_dir),
+        ],
+    ):
+        cli.main()
+
+    payload = json.loads((output_dir / "result.json").read_text(encoding="utf-8"))
+    assert payload["clusters"] == [["a.py"]]

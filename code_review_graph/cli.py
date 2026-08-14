@@ -599,6 +599,7 @@ def _run_graph_tool_command(args, repo_root: Path) -> None:
         result = tools.get_file_cluster(
             json_path=args.json_path,
             repo_root=root,
+            output=args.output,
         )
     else:
         result = tools.refactor_func(
@@ -1177,6 +1178,14 @@ def main() -> None:
         "--repo",
         default=None,
         help="Repository root (auto-detected)",
+    )
+    file_cluster_cmd.add_argument(
+        "--output",
+        default=None,
+        help=(
+            "Write the result to a file, or to result.json inside the given "
+            "directory"
+        ),
     )
 
     refactor_cmd = sub.add_parser("refactor", help="Preview graph-backed refactors")

@@ -4,6 +4,7 @@ import json
 
 from code_review_graph.graph import GraphEdge, GraphNode
 from code_review_graph.tools.cluster import (
+    _write_cluster_result,
     cluster_changed_files,
     cluster_connected_nodes,
     save_diff_clusters,
@@ -169,6 +170,23 @@ def test_cluster_changed_files_ignores_nodes_not_selected_by_diff(tmp_path) -> N
     )
 
     assert clusters == [["a.py"], ["b.py"]]
+
+
+def test_write_cluster_result_to_file(tmp_path) -> None:
+    output = tmp_path / "out" / "result.json"
+    _write_cluster_result({"status": "ok", "clusters": [["a.py"]]}, str(output))
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload == {"status": "ok", "clusters": [["a.py"]]}
+
+
+def test_write_cluster_result_to_directory(tmp_path) -> None:
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    _write_cluster_result({"status": "ok", "clusters": [["a.py"]]}, str(output_dir))
+
+    payload = json.loads((output_dir / "result.json").read_text(encoding="utf-8"))
+    assert payload == {"status": "ok", "clusters": [["a.py"]]}
 
 
 def test_split_diff_by_file_preserves_complete_sections() -> None:
