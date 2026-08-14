@@ -141,10 +141,34 @@ def test_cluster_changed_files_projects_node_edges_to_files(tmp_path) -> None:
     clusters = cluster_changed_files(
         _FileStore([_edge(first, second)]),  # type: ignore[arg-type]
         ["a.py", "b.py", "c.py", "missing.py"],
+        [first, second, isolated],
         tmp_path,
     )
 
     assert clusters == [["a.py", "b.py"], ["c.py"], ["missing.py"]]
+
+
+def test_cluster_changed_files_ignores_nodes_not_selected_by_diff(tmp_path) -> None:
+    first = _node("first")
+    first.file_path = "a.py"
+    second = _node("second")
+    second.file_path = "b.py"
+
+    class _FileStore(_Store):
+        def get_nodes_by_file(self, file_path: str) -> list[GraphNode]:
+            return [node for node in (first, second) if node.file_path == file_path]
+
+        def get_files_matching(self, suffix: str) -> list[str]:
+            return []
+
+    clusters = cluster_changed_files(
+        _FileStore([_edge(first, second)]),  # type: ignore[arg-type]
+        ["a.py", "b.py"],
+        [],
+        tmp_path,
+    )
+
+    assert clusters == [["a.py"], ["b.py"]]
 
 
 def test_split_diff_by_file_preserves_complete_sections() -> None:

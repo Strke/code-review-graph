@@ -98,17 +98,24 @@ def cluster_connected_nodes(
 def cluster_changed_files(
     store: GraphStore,
     changed_files: list[str],
+    changed_nodes: list[GraphNode],
     repo_root: Path,
 ) -> list[list[str]]:
-    """Group changed files by connectivity in their induced code subgraph."""
+    """Group files by connectivity among nodes selected by their diff ranges."""
     adjacency: dict[str, set[str]] = {file_path: set() for file_path in changed_files}
     node_files: dict[str, set[str]] = {}
+    input_files_by_stored_path: dict[str, set[str]] = {}
 
     for file_path in changed_files:
         stored_paths = _resolve_graph_file_paths(store, repo_root, [file_path])
         for stored_path in stored_paths:
-            for node in store.get_nodes_by_file(stored_path):
-                node_files.setdefault(node.qualified_name, set()).add(file_path)
+            input_files_by_stored_path.setdefault(stored_path, set()).add(file_path)
+
+    for node in changed_nodes:
+        if node.kind == "File":
+            continue
+        for file_path in input_files_by_stored_path.get(node.file_path, set()):
+            node_files.setdefault(node.qualified_name, set()).add(file_path)
 
     for edge in store.get_edges_among(set(node_files)):
         for source_file in node_files[edge.source_qualified]:
@@ -335,13 +342,15 @@ def get_file_cluster(
 ) -> dict[str, Any]:
     """Load diff-style JSON input and group its changed files by connectivity."""
     try:
-        changed_files, _ = load_diff_input(json_path)
+        changed_files, diff = load_diff_input(json_path)
     except ValueError as exc:
         return {"status": "error", "error": str(exc)}
 
+    diff_ranges = _parse_unified_diff(diff)
     store, root = _get_store(repo_root)
     try:
-        clusters = cluster_changed_files(store, changed_files, root)
+        changed_nodes = map_changes_to_nodes(store, diff_ranges)
+        clusters = cluster_changed_files(store, changed_files, changed_nodes, root)
     finally:
         store.close()
 

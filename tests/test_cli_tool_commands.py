@@ -223,8 +223,15 @@ def test_file_cluster_command_returns_file_groups(tmp_path, capsys) -> None:
     repo.mkdir()
     (repo / ".git").mkdir()
     input_path = tmp_path / "changes.json"
+    diff = "".join(
+        f"diff --git a/{name}.py b/{name}.py\n"
+        f"--- a/{name}.py\n"
+        f"+++ b/{name}.py\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for name in ("a", "b", "c")
+    )
     input_path.write_text(
-        json.dumps({"changed_files": ["a.py", "b.py", "c.py"], "diff": ""}),
+        json.dumps({"changed_files": ["a.py", "b.py", "c.py"], "diff": diff}),
         encoding="utf-8",
     )
 
@@ -257,3 +264,43 @@ def test_file_cluster_command_returns_file_groups(tmp_path, capsys) -> None:
     result = json.loads(capsys.readouterr().out)
     assert result["status"] == "ok"
     assert result["clusters"] == [["a.py", "b.py"], ["c.py"]]
+
+
+def test_file_cluster_command_empty_diff_keeps_files_separate(tmp_path, capsys) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    input_path = tmp_path / "changes.json"
+    input_path.write_text(
+        json.dumps({"changed_files": ["a.py", "b.py"], "diff": ""}),
+        encoding="utf-8",
+    )
+
+    with GraphStore(repo / ".code-review-graph" / "graph.db") as store:
+        for name in ("a", "b"):
+            store.upsert_node(NodeInfo(
+                kind="Function",
+                name=name,
+                file_path=str(repo / f"{name}.py"),
+                line_start=1,
+                line_end=1,
+                language="python",
+            ))
+        store.upsert_edge(EdgeInfo(
+            kind="CALLS",
+            source=f"{repo / 'a.py'}::a",
+            target=f"{repo / 'b.py'}::b",
+            file_path=str(repo / "a.py"),
+            line=1,
+        ))
+        store.commit()
+
+    with patch.object(
+        sys,
+        "argv",
+        ["code-review-graph", "file-cluster", str(input_path), "--repo", str(repo)],
+    ):
+        cli.main()
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["clusters"] == [["a.py"], ["b.py"]]
