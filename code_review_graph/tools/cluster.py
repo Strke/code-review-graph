@@ -65,7 +65,7 @@ def cluster_connected_nodes(
     """
     changed_nodes = [node for node in changed_nodes if node.kind != "File"]
     nodes_by_name = {node.qualified_name: node for node in changed_nodes}
-    adjacency = {name: set() for name in nodes_by_name}
+    adjacency: dict[str, set[str]] = {name: set() for name in nodes_by_name}
 
     for edge in store.get_edges_among(set(nodes_by_name)):
         if edge.kind == "CONTAINS":
