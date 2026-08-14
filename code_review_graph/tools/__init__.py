@@ -65,7 +65,7 @@ from .analysis_tools import (
 from .build import build_or_update_graph, run_postprocess
 
 # -- cluster ----------------------------------------------------------------
-from .cluster import get_diff_cluster
+from .cluster import get_diff_cluster, get_file_cluster
 
 # -- community_tools --------------------------------------------------------
 from .community_tools import (
@@ -117,6 +117,7 @@ __all__ = [
     "run_postprocess",
     # cluster
     "get_diff_cluster",
+    "get_file_cluster",
     # context
     "get_minimal_context",
     # community_tools

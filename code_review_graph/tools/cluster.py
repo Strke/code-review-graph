@@ -9,7 +9,7 @@ from typing import Any
 
 from ..changes import _parse_unified_diff, map_changes_to_nodes
 from ..graph import GraphNode, GraphStore
-from ._common import _get_store
+from ._common import _get_store, _resolve_graph_file_paths
 
 # ---------------------------------------------------------------------------
 # Diff cluster tools
@@ -91,6 +91,49 @@ def cluster_connected_nodes(
                     visited.add(neighbor)
                     stack.append(neighbor)
         clusters.append(component)
+
+    return clusters
+
+
+def cluster_changed_files(
+    store: GraphStore,
+    changed_files: list[str],
+    repo_root: Path,
+) -> list[list[str]]:
+    """Group changed files by connectivity in their induced code subgraph."""
+    adjacency: dict[str, set[str]] = {file_path: set() for file_path in changed_files}
+    node_files: dict[str, set[str]] = {}
+
+    for file_path in changed_files:
+        stored_paths = _resolve_graph_file_paths(store, repo_root, [file_path])
+        for stored_path in stored_paths:
+            for node in store.get_nodes_by_file(stored_path):
+                node_files.setdefault(node.qualified_name, set()).add(file_path)
+
+    for edge in store.get_edges_among(set(node_files)):
+        for source_file in node_files[edge.source_qualified]:
+            for target_file in node_files[edge.target_qualified]:
+                if source_file != target_file:
+                    adjacency[source_file].add(target_file)
+                    adjacency[target_file].add(source_file)
+
+    clusters: list[list[str]] = []
+    visited: set[str] = set()
+    for file_path in changed_files:
+        if file_path in visited:
+            continue
+        cluster: list[str] = []
+        stack = [file_path]
+        visited.add(file_path)
+        while stack:
+            current = stack.pop()
+            cluster.append(current)
+            for neighbor in adjacency[current]:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    stack.append(neighbor)
+        cluster.sort(key=changed_files.index)
+        clusters.append(cluster)
 
     return clusters
 
@@ -284,3 +327,27 @@ def get_diff_cluster(
         result["unmatched_count"] = len(unmatched_files)
 
     return result
+
+
+def get_file_cluster(
+    json_path: str,
+    repo_root: str | None = None,
+) -> dict[str, Any]:
+    """Load diff-style JSON input and group its changed files by connectivity."""
+    try:
+        changed_files, _ = load_diff_input(json_path)
+    except ValueError as exc:
+        return {"status": "error", "error": str(exc)}
+
+    store, root = _get_store(repo_root)
+    try:
+        clusters = cluster_changed_files(store, changed_files, root)
+    finally:
+        store.close()
+
+    return {
+        "status": "ok",
+        "summary": f"Grouped {len(changed_files)} changed file(s) into {len(clusters)} cluster(s)",
+        "changed_files": changed_files,
+        "clusters": clusters,
+    }

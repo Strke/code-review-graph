@@ -495,6 +495,7 @@ _GRAPH_TOOL_COMMANDS = {
     "architecture",
     "large-functions",
     "diff-cluster",
+    "file-cluster",
     "refactor",
 }
 
@@ -591,6 +592,11 @@ def _run_graph_tool_command(args, repo_root: Path) -> None:
         )
     elif args.command == "diff-cluster":
         result = tools.get_diff_cluster(
+            json_path=args.json_path,
+            repo_root=root,
+        )
+    elif args.command == "file-cluster":
+        result = tools.get_file_cluster(
             json_path=args.json_path,
             repo_root=root,
         )
@@ -1154,6 +1160,20 @@ def main() -> None:
         help="JSON file containing changed_files and diff",
     )
     diff_cluster_cmd.add_argument(
+        "--repo",
+        default=None,
+        help="Repository root (auto-detected)",
+    )
+
+    file_cluster_cmd = sub.add_parser(
+        "file-cluster",
+        help="Group changed files described by a JSON file",
+    )
+    file_cluster_cmd.add_argument(
+        "json_path",
+        help="JSON file containing changed_files and diff",
+    )
+    file_cluster_cmd.add_argument(
         "--repo",
         default=None,
         help="Repository root (auto-detected)",

@@ -4,6 +4,7 @@ import json
 
 from code_review_graph.graph import GraphEdge, GraphNode
 from code_review_graph.tools.cluster import (
+    cluster_changed_files,
     cluster_connected_nodes,
     save_diff_clusters,
     split_diff_by_file,
@@ -117,6 +118,33 @@ def test_cluster_connected_nodes_ignores_contains_edges() -> None:
         {"first"},
         {"second"},
     ]
+
+
+def test_cluster_changed_files_projects_node_edges_to_files(tmp_path) -> None:
+    first = _node("first")
+    first.file_path = "a.py"
+    second = _node("second")
+    second.file_path = "b.py"
+    isolated = _node("isolated")
+    isolated.file_path = "c.py"
+
+    class _FileStore(_Store):
+        def get_nodes_by_file(self, file_path: str) -> list[GraphNode]:
+            return [
+                node for node in (first, second, isolated)
+                if node.file_path == file_path
+            ]
+
+        def get_files_matching(self, suffix: str) -> list[str]:
+            return []
+
+    clusters = cluster_changed_files(
+        _FileStore([_edge(first, second)]),  # type: ignore[arg-type]
+        ["a.py", "b.py", "c.py", "missing.py"],
+        tmp_path,
+    )
+
+    assert clusters == [["a.py", "b.py"], ["c.py"], ["missing.py"]]
 
 
 def test_split_diff_by_file_preserves_complete_sections() -> None:

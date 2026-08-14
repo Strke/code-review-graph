@@ -216,3 +216,44 @@ def test_diff_cluster_command_writes_connected_components(
     assert payloads[0]["diff"].count("diff --git") == 2
     assert payloads[1]["changed_files"] == ["c.py"]
     assert payloads[1]["diff"].count("diff --git") == 1
+
+
+def test_file_cluster_command_returns_file_groups(tmp_path, capsys) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    input_path = tmp_path / "changes.json"
+    input_path.write_text(
+        json.dumps({"changed_files": ["a.py", "b.py", "c.py"], "diff": ""}),
+        encoding="utf-8",
+    )
+
+    with GraphStore(repo / ".code-review-graph" / "graph.db") as store:
+        for name in ("a", "b", "c"):
+            store.upsert_node(NodeInfo(
+                kind="Function",
+                name=name,
+                file_path=str(repo / f"{name}.py"),
+                line_start=1,
+                line_end=1,
+                language="python",
+            ))
+        store.upsert_edge(EdgeInfo(
+            kind="CALLS",
+            source=f"{repo / 'a.py'}::a",
+            target=f"{repo / 'b.py'}::b",
+            file_path=str(repo / "a.py"),
+            line=1,
+        ))
+        store.commit()
+
+    with patch.object(
+        sys,
+        "argv",
+        ["code-review-graph", "file-cluster", str(input_path), "--repo", str(repo)],
+    ):
+        cli.main()
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "ok"
+    assert result["clusters"] == [["a.py", "b.py"], ["c.py"]]
